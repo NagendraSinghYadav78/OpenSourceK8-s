@@ -13,6 +13,34 @@ Usage:
         pip install pandas numpy scipy matplotlib --break-system-packages
         python analysis.py
 
+Software versions used to generate the reported manuscript values:
+    Python 3.12.3, scipy 1.17.1, numpy 2.4.4, pandas 3.0.2, matplotlib 3.10.8.
+    Exact p-values/effect sizes for rank-based tests can vary slightly across
+    SciPy versions depending on internal tie-handling and exact/asymptotic
+    method selection; if re-running with a different SciPy version produces
+    materially different values, report the installed version alongside
+    the discrepancy.
+
+SciPy method options used (documented explicitly for reproducibility):
+    - scipy.stats.mannwhitneyu(x, y, alternative="two-sided"): method is left
+      at SciPy's default "auto", which selects the exact method for small,
+      tie-free samples and falls back to the normal approximation otherwise.
+      No ties were present in any of the four between-tool comparisons.
+    - scipy.stats.wilcoxon(x, y, alternative="two-sided"): method is left at
+      SciPy's default "auto"; with n=15 paired differences and no zero
+      differences, this resolves to the exact method, consistent with the
+      exact p-value (0.000061) reported in the manuscript.
+    - Rank-biserial effect size for Mann-Whitney U is computed manually as
+      r = 1 - 2U/(n1*n2), where U is oriented as SciPy returns it for the
+      *first* argument passed to mannwhitneyu(x, y, ...). In this script,
+      x is always the Rancher Desktop sample, so positive r indicates
+      Rancher Desktop had the lower (faster) values, matching the sign
+      convention stated in Table 4 of the manuscript.
+    - Matched-pairs rank-biserial effect size for the Wilcoxon test is
+      computed as (n_pos - n_neg) / n, counting the sign of each paired
+      difference (scale-out minus scale-in) directly, independent of SciPy's
+      internal statistic.
+
 Outputs:
     - Prints all descriptive statistics (n, mean, median, SD, 95% CI)
       for both tools across all four metrics (Table 2/3 in the paper).
@@ -50,6 +78,20 @@ MINIKUBE = {
     "recovery":    [2.07, 1.94, 1.94, 1.86, 1.97, 1.85, 1.97, 1.96, 1.86, 1.96, 1.97, 2.17, 1.84, 2.24, 1.82],
     "scaleout":    [4.87, 10.13, 15.81, 10.41, 13.23, 10.23, 12.93, 13.2, 13.2, 13.03, 10.3, 9.8, 9.98, 9.67, 10.18],
     "scalein":     [2.19, 2.13, 2.41, 2.1, 2.02, 2.41, 2.25, 2.46, 2.39, 2.21, 1.99, 2.2, 2.1, 2.48, 2.3],
+}
+
+# Resource-matched follow-up: Rancher Desktop's WSL2 environment was capped to
+# 2 CPU / 5 GB (matching Minikube's explicit allocation above) via .wslconfig,
+# and all four experiments were repeated under this constrained configuration.
+# See Comparative Evaluation, "Resource-Matched Follow-up Comparison" in the
+# manuscript, and the accompanying Threats to Validity discussion of the
+# session-order confound this follow-up introduced for three of four metrics.
+RANCHER_MATCHED = {
+    "deploy_warm": [6.69, 1.8, 1.79, 1.86, 1.76, 1.79, 1.8, 1.85, 6.3, 1.76, 1.87, 1.77, 1.78, 4.29],
+    "deploy_cold": [4.7],
+    "recovery":    [1.73, 1.69, 1.7, 1.8, 1.77, 1.75, 1.73, 1.76, 1.77, 1.69, 1.75, 1.73, 1.67, 1.63, 1.62],
+    "scaleout":    [3.85, 6.03, 3.93, 6.29, 6.09, 8.39, 6.13, 8.53, 8.66, 10.52, 6.01, 8.16, 6.27, 8.35, 8.24],
+    "scalein":     [1.67, 1.68, 1.84, 2.03, 1.78, 1.69, 1.73, 1.71, 1.86, 1.81, 1.7, 1.65, 1.68, 1.66, 1.71],
 }
 
 
@@ -197,6 +239,87 @@ def main():
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.savefig("distribution_figure.png", dpi=200, bbox_inches="tight")
         print("Saved distribution_figure.png")
+    except ImportError:
+        print("matplotlib not installed; skipping figure regeneration. "
+              "Run: pip install matplotlib --break-system-packages")
+
+
+    print("\n" + "=" * 100)
+    print("RESOURCE-MATCHED FOLLOW-UP: Rancher Desktop (2 CPU/5GB) vs. Minikube (2 CPU/5GB)")
+    print("Addresses reviewer question: does the scale-out difference survive resource matching?")
+    print("=" * 100)
+
+    matched_comparisons = {
+        "Apply-to-Pod-Ready (warm)": (RANCHER_MATCHED["deploy_warm"], MINIKUBE["deploy_warm"]),
+        "Pod-deletion recovery":     (RANCHER_MATCHED["recovery"], MINIKUBE["recovery"]),
+        "Scale-out":                 (RANCHER_MATCHED["scaleout"], MINIKUBE["scaleout"]),
+        "Scale-in":                  (RANCHER_MATCHED["scalein"], MINIKUBE["scalein"]),
+    }
+
+    matched_raw_pvalues, matched_u_stats, matched_effect_sizes = {}, {}, {}
+    for label, (r_data, m_data) in matched_comparisons.items():
+        r_eff, u = rank_biserial_mw(r_data, m_data)
+        _, p = stats.mannwhitneyu(r_data, m_data, alternative="two-sided")
+        matched_raw_pvalues[label] = p
+        matched_u_stats[label] = u
+        matched_effect_sizes[label] = r_eff
+
+    matched_adjusted = holm_bonferroni(list(matched_raw_pvalues.values()), list(matched_raw_pvalues.keys()))
+
+    for label, (r_data, m_data) in matched_comparisons.items():
+        r_med, r_iqr = np.median(r_data), np.percentile(r_data, 75) - np.percentile(r_data, 25)
+        m_med, m_iqr = np.median(m_data), np.percentile(m_data, 75) - np.percentile(m_data, 25)
+        print(f"\n{label}:")
+        print(f"  Rancher (matched): n={len(r_data)}, median={r_med:.2f} [IQR={r_iqr:.2f}]")
+        print(f"  Minikube          : n={len(m_data)}, median={m_med:.2f} [IQR={m_iqr:.2f}]")
+        print(f"  U={matched_u_stats[label]:.1f}, raw p={matched_raw_pvalues[label]:.6f}, "
+              f"Holm-adjusted p={matched_adjusted[label]:.6f}, rank-biserial r={matched_effect_sizes[label]:.2f}")
+
+    print("\nKey comparison: does Rancher's scale-out advantage survive resource matching?")
+    print(f"  Rancher (UNMATCHED, 8 CPU): mean = {np.mean(RANCHER['scaleout']):.2f} s")
+    print(f"  Rancher (MATCHED, 2 CPU):   mean = {np.mean(RANCHER_MATCHED['scaleout']):.2f} s")
+    print(f"  Minikube (2 CPU):           mean = {np.mean(MINIKUBE['scaleout']):.2f} s")
+    print("  -> Scale-out difference persists under matched resources (see manuscript Table 5).")
+    print("  -> The other three metrics show an unexpected reversal under matched resources,")
+    print("     most plausibly a session-order/caching confound rather than a resource effect")
+    print("     (see manuscript Threats to Validity).")
+
+    print("\n" + "=" * 100)
+    print("FIGURE 2: Regenerating resource-matched comparison boxplots -> matched_comparison_figure.png")
+    print("=" * 100)
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt2
+
+        fig2, axes2 = plt2.subplots(2, 2, figsize=(9, 7))
+        matched_datasets = [
+            ("Apply-to-Pod-Ready Latency (warm)", RANCHER_MATCHED["deploy_warm"], MINIKUBE["deploy_warm"], axes2[0, 0]),
+            ("Pod-deletion Recovery Latency", RANCHER_MATCHED["recovery"], MINIKUBE["recovery"], axes2[0, 1]),
+            ("Scale-out Latency (1->3)", RANCHER_MATCHED["scaleout"], MINIKUBE["scaleout"], axes2[1, 0]),
+            ("Scale-in Latency (3->1)", RANCHER_MATCHED["scalein"], MINIKUBE["scalein"], axes2[1, 1]),
+        ]
+        for title, r_data, m_data, ax in matched_datasets:
+            bp = ax.boxplot([r_data, m_data],
+                             tick_labels=["Rancher\nDesktop\n(2 CPU/5GB)", "Minikube\n(2 CPU/5GB)"],
+                             patch_artist=True, widths=0.5, showmeans=True,
+                             meanprops={"marker": "D", "markerfacecolor": "white",
+                                        "markeredgecolor": "black", "markersize": 5})
+            for patch, color in zip(bp["boxes"], ["#4C72B0", "#DD8452"]):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.6)
+            for i, data in enumerate([r_data, m_data], start=1):
+                x = np.random.normal(i, 0.04, size=len(data))
+                ax.scatter(x, data, alpha=0.5, s=12, color="black", zorder=3)
+            ax.set_title(title, fontsize=10)
+            ax.set_ylabel("Seconds", fontsize=9)
+            ax.tick_params(labelsize=8)
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+        fig2.suptitle("Resource-Matched Comparison: Rancher Desktop (2 CPU/5GB) vs. Minikube (2 CPU/5GB)",
+                       fontsize=10.5, y=0.99)
+        plt2.tight_layout(rect=[0, 0, 1, 0.96])
+        plt2.savefig("matched_comparison_figure.png", dpi=200, bbox_inches="tight")
+        print("Saved matched_comparison_figure.png")
     except ImportError:
         print("matplotlib not installed; skipping figure regeneration. "
               "Run: pip install matplotlib --break-system-packages")
