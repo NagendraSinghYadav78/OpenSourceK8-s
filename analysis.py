@@ -159,8 +159,8 @@ def main():
         print(f"\n{label}:")
         print(f"  Rancher : n={len(r_data)}, median={r_med:.2f} [IQR={r_iqr:.2f}]")
         print(f"  Minikube: n={len(m_data)}, median={m_med:.2f} [IQR={m_iqr:.2f}]")
-        print(f"  U={u_stats[label]:.1f}, raw p={raw_pvalues[label]:.4f}, "
-              f"Holm-adjusted p={adjusted[label]:.4f}, rank-biserial r={effect_sizes[label]:.2f}")
+        print(f"  U={u_stats[label]:.1f}, raw p={raw_pvalues[label]:.6f}, "
+              f"Holm-adjusted p={adjusted[label]:.6f}, rank-biserial r={effect_sizes[label]:.2f}")
 
     print("\n" + "=" * 100)
     print("FIGURE 1: Regenerating distribution boxplots -> distribution_figure.png")
