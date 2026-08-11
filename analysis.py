@@ -301,7 +301,7 @@ def main():
         ]
         for title, r_data, m_data, ax in matched_datasets:
             bp = ax.boxplot([r_data, m_data],
-                             tick_labels=["Rancher\nDesktop\n(2 CPU/5GB)", "Minikube\n(2 CPU/5GB)"],
+                             tick_labels=["Rancher\nDesktop\n(2 CPU/5GB,\nrerun)", "Minikube\n(2 CPU/5GB,\nnot rerun)"],
                              patch_artist=True, widths=0.5, showmeans=True,
                              meanprops={"marker": "D", "markerfacecolor": "white",
                                         "markeredgecolor": "black", "markersize": 5})
@@ -313,9 +313,9 @@ def main():
                 ax.scatter(x, data, alpha=0.5, s=12, color="black", zorder=3)
             ax.set_title(title, fontsize=10)
             ax.set_ylabel("Seconds", fontsize=9)
-            ax.tick_params(labelsize=8)
+            ax.tick_params(labelsize=7.5)
             ax.grid(axis="y", linestyle="--", alpha=0.4)
-        fig2.suptitle("Resource-Matched Comparison: Rancher Desktop (2 CPU/5GB) vs. Minikube (2 CPU/5GB)",
+        fig2.suptitle("Resource-Capped Rancher Desktop Sensitivity Analysis (vs. unrerun Minikube dataset)",
                        fontsize=10.5, y=0.99)
         plt2.tight_layout(rect=[0, 0, 1, 0.96])
         plt2.savefig("matched_comparison_figure.png", dpi=200, bbox_inches="tight")
