@@ -23,13 +23,29 @@ Software versions used to generate the reported manuscript values:
 
 SciPy method options used (documented explicitly for reproducibility):
     - scipy.stats.mannwhitneyu(x, y, alternative="two-sided"): method is left
-      at SciPy's default "auto", which selects the exact method for small,
-      tie-free samples and falls back to the normal approximation otherwise.
-      No ties were present in any of the four between-tool comparisons.
+      at SciPy's default "auto". Ties ARE present in all four between-tool
+      comparisons (verified: each comparison's combined 28-30 values contain
+      fewer unique values than observations, e.g. repeated warm-start values
+      like 2.12, 2.18, 2.25 s recurring across trials). With ties present,
+      SciPy's "auto" falls back to the normal (asymptotic) approximation with
+      continuity correction for all four comparisons -- NOT the exact
+      permutation method. The reported p-values (0.279585, 0.708614,
+      0.000159, 1.000000) are asymptotic-approximation p-values; the exact
+      permutation p-values differ slightly (0.285176, 0.712965, 0.0000440,
+      1.0 respectively) and are NOT what is reported in the manuscript.
+      U=112.5 (Scale-in comparison) itself reflects averaged mid-ranks from
+      tied observations, confirming ties are present. This was verified by
+      independently computing all four with method="exact" and
+      method="asymptotic" explicitly and confirming which one matches the
+      reported values.
     - scipy.stats.wilcoxon(x, y, alternative="two-sided"): method is left at
-      SciPy's default "auto"; with n=15 paired differences and no zero
-      differences, this resolves to the exact method, consistent with the
-      exact p-value (0.000061) reported in the manuscript.
+      SciPy's default "auto"; with n=15 paired differences, no zero
+      differences, and no ties among the absolute differences, this
+      genuinely resolves to the exact method, consistent with the exact
+      p-value (0.000061) reported in the manuscript. This is independently
+      verified and distinct from the Mann-Whitney case above -- the two
+      tests use different tie-handling logic and should not be assumed to
+      behave the same way.
     - Rank-biserial effect size for Mann-Whitney U is computed manually as
       r = 1 - 2U/(n1*n2), where U is oriented as SciPy returns it for the
       *first* argument passed to mannwhitneyu(x, y, ...). In this script,
@@ -223,8 +239,8 @@ def main():
         datasets = [
             ("Apply-to-Pod-Ready Latency (warm)", RANCHER["deploy_warm"], MINIKUBE["deploy_warm"], axes[0, 0]),
             ("Pod-deletion Recovery Latency", RANCHER["recovery"], MINIKUBE["recovery"], axes[0, 1]),
-            ("Scale-out Latency (1->3)", RANCHER["scaleout"], MINIKUBE["scaleout"], axes[1, 0]),
-            ("Scale-in Latency (3->1)", RANCHER["scalein"], MINIKUBE["scalein"], axes[1, 1]),
+            ("Scale-out Ready-Replica Convergence (1->3)", RANCHER["scaleout"], MINIKUBE["scaleout"], axes[1, 0]),
+            ("Scale-in Ready-Replica Convergence (3->1)", RANCHER["scalein"], MINIKUBE["scalein"], axes[1, 1]),
         ]
         for title, r_data, m_data, ax in datasets:
             bp = ax.boxplot([r_data, m_data], tick_labels=["Rancher\nDesktop", "Minikube"],
@@ -311,8 +327,8 @@ def main():
         matched_datasets = [
             ("Apply-to-Pod-Ready Latency (warm)", RANCHER_MATCHED["deploy_warm"], MINIKUBE["deploy_warm"], axes2[0, 0]),
             ("Pod-deletion Recovery Latency", RANCHER_MATCHED["recovery"], MINIKUBE["recovery"], axes2[0, 1]),
-            ("Scale-out Latency (1->3)", RANCHER_MATCHED["scaleout"], MINIKUBE["scaleout"], axes2[1, 0]),
-            ("Scale-in Latency (3->1)", RANCHER_MATCHED["scalein"], MINIKUBE["scalein"], axes2[1, 1]),
+            ("Scale-out Ready-Replica Convergence (1->3)", RANCHER_MATCHED["scaleout"], MINIKUBE["scaleout"], axes2[1, 0]),
+            ("Scale-in Ready-Replica Convergence (3->1)", RANCHER_MATCHED["scalein"], MINIKUBE["scalein"], axes2[1, 1]),
         ]
         for title, r_data, m_data, ax in matched_datasets:
             bp = ax.boxplot([r_data, m_data],
