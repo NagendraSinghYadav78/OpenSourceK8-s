@@ -80,12 +80,19 @@ MINIKUBE = {
     "scalein":     [2.19, 2.13, 2.41, 2.1, 2.02, 2.41, 2.25, 2.46, 2.39, 2.21, 1.99, 2.2, 2.1, 2.48, 2.3],
 }
 
-# Resource-matched follow-up: Rancher Desktop's WSL2 environment was capped to
-# 2 CPU / 5 GB (matching Minikube's explicit allocation above) via .wslconfig,
-# and all four experiments were repeated under this constrained configuration.
-# See Comparative Evaluation, "Resource-Matched Follow-up Comparison" in the
-# manuscript, and the accompanying Threats to Validity discussion of the
-# session-order confound this follow-up introduced for three of four metrics.
+# Resource-Capped Rancher Desktop Sensitivity Analysis (exploratory/post-hoc):
+# Rancher Desktop's WSL2 environment was capped to 2 CPU / 5 GB (matching
+# Minikube's explicit allocation above) via .wslconfig, and all four
+# experiments were repeated under this constrained configuration IN A LATER
+# SESSION. Minikube was NOT rerun; the MINIKUBE dataset above is reused as
+# the reference. This is NOT one of the two prespecified inferential
+# analyses (see Statistical Analysis in the manuscript) -- it is post-hoc,
+# motivated by the resource confound identified in the original comparison,
+# and its results are not statistically independent of that comparison since
+# both share the same Minikube sample. See Comparative Evaluation, "Resource-
+# Capped Rancher Desktop Sensitivity Analysis" in the manuscript, and the
+# accompanying Threats to Validity discussion of the session/temporal
+# confound this analysis introduced for three of four metrics.
 RANCHER_MATCHED = {
     "deploy_warm": [6.69, 1.8, 1.79, 1.86, 1.76, 1.79, 1.8, 1.85, 6.3, 1.76, 1.87, 1.77, 1.78, 4.29],
     "deploy_cold": [4.7],
@@ -245,8 +252,12 @@ def main():
 
 
     print("\n" + "=" * 100)
-    print("RESOURCE-MATCHED FOLLOW-UP: Rancher Desktop (2 CPU/5GB) vs. Minikube (2 CPU/5GB)")
-    print("Addresses reviewer question: does the scale-out difference survive resource matching?")
+    print("RESOURCE-CAPPED RANCHER DESKTOP SENSITIVITY ANALYSIS (exploratory/post-hoc)")
+    print("Rancher Desktop rerun at 2 CPU/5GB vs. the ORIGINAL, UNRERUN Minikube dataset (2 CPU/5GB)")
+    print("NOTE: This is NOT one of the two prespecified inferential analyses (see main() above).")
+    print("It is post-hoc, motivated by the resource confound in the original comparison, and its")
+    print("p-values are NOT independent confirmatory evidence -- both analyses share the same")
+    print("Minikube sample, and Minikube was not rerun for this analysis.")
     print("=" * 100)
 
     matched_comparisons = {
@@ -265,27 +276,31 @@ def main():
         matched_effect_sizes[label] = r_eff
 
     matched_adjusted = holm_bonferroni(list(matched_raw_pvalues.values()), list(matched_raw_pvalues.keys()))
+    print("(Holm correction below applies only within this exploratory four-test family,")
+    print(" independently of the original comparison's correction.)")
 
     for label, (r_data, m_data) in matched_comparisons.items():
         r_med, r_iqr = np.median(r_data), np.percentile(r_data, 75) - np.percentile(r_data, 25)
         m_med, m_iqr = np.median(m_data), np.percentile(m_data, 75) - np.percentile(m_data, 25)
         print(f"\n{label}:")
-        print(f"  Rancher (matched): n={len(r_data)}, median={r_med:.2f} [IQR={r_iqr:.2f}]")
-        print(f"  Minikube          : n={len(m_data)}, median={m_med:.2f} [IQR={m_iqr:.2f}]")
+        print(f"  Rancher (resource-capped rerun): n={len(r_data)}, median={r_med:.2f} [IQR={r_iqr:.2f}]")
+        print(f"  Minikube (unrerun, original)   : n={len(m_data)}, median={m_med:.2f} [IQR={m_iqr:.2f}]")
         print(f"  U={matched_u_stats[label]:.1f}, raw p={matched_raw_pvalues[label]:.6f}, "
-              f"Holm-adjusted p={matched_adjusted[label]:.6f}, rank-biserial r={matched_effect_sizes[label]:.2f}")
+              f"exploratory Holm-adjusted p={matched_adjusted[label]:.6f}, rank-biserial r={matched_effect_sizes[label]:.2f}")
 
-    print("\nKey comparison: does Rancher's scale-out advantage survive resource matching?")
+    print("\nDoes the direction of Rancher's scale-out difference reverse under a reduced allocation?")
     print(f"  Rancher (UNMATCHED, 8 CPU): mean = {np.mean(RANCHER['scaleout']):.2f} s")
-    print(f"  Rancher (MATCHED, 2 CPU):   mean = {np.mean(RANCHER_MATCHED['scaleout']):.2f} s")
-    print(f"  Minikube (2 CPU):           mean = {np.mean(MINIKUBE['scaleout']):.2f} s")
-    print("  -> Scale-out difference persists under matched resources (see manuscript Table 5).")
-    print("  -> The other three metrics show an unexpected reversal under matched resources,")
-    print("     most plausibly a session-order/caching confound rather than a resource effect")
-    print("     (see manuscript Threats to Validity).")
+    print(f"  Rancher (resource-capped, 2 CPU, later session): mean = {np.mean(RANCHER_MATCHED['scaleout']):.2f} s")
+    print(f"  Minikube (2 CPU, unrerun): mean = {np.mean(MINIKUBE['scaleout']):.2f} s")
+    print("  -> Direction did not reverse (see manuscript Table 5); this is exploratory evidence,")
+    print("     not independent confirmation, since Minikube was not rerun.")
+    print("  -> The other three metrics show an unexpected reversal under the resource-capped rerun,")
+    print("     evidence that session/cache/temporal state changed alongside CPU/RAM for Rancher")
+    print("     Desktop; treated as validity evidence of this confound, not as new performance")
+    print("     findings (see manuscript Threats to Validity).")
 
     print("\n" + "=" * 100)
-    print("FIGURE 2: Regenerating resource-matched comparison boxplots -> matched_comparison_figure.png")
+    print("FIGURE 2: Regenerating resource-capped sensitivity analysis boxplots -> matched_comparison_figure.png")
     print("=" * 100)
     try:
         import matplotlib
